@@ -1,6 +1,6 @@
 import { AgentManager } from 'src/agents/AgentManager'
 import type { ServerConfig } from 'src/config/ServerConfig'
-import type { AgentDefinition } from 'src/types/AgentDefinition'
+import { type AgentDefinition, DEFAULT_MODEL } from 'src/types/AgentDefinition'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock fs module
@@ -336,6 +336,186 @@ This agent does amazing things.`
       expect(agent!.name).toBe('target-agent')
       expect(agent!.description).toBe('Target Agent')
       expect(agent!.content).toBe(targetContent)
+    })
+  })
+
+  describe('Frontmatter Parsing', () => {
+    it('should parse model from YAML frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['opus-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+model: claude-opus-4-5
+---
+# Opus Agent
+This agent uses Claude Opus 4.5.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/opus-agent.md')
+      mockBasename.mockReturnValue('opus-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('opus-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.model).toBe('claude-opus-4-5')
+      expect(agent!.description).toBe('Opus Agent')
+      // Content should not include frontmatter
+      expect(agent!.content).not.toContain('---')
+      expect(agent!.content).toContain('# Opus Agent')
+    })
+
+    it('should parse claude-sonnet-4-5 model from frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['sonnet-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+model: claude-sonnet-4-5
+---
+# Sonnet Agent
+This agent uses Claude Sonnet 4.5.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/sonnet-agent.md')
+      mockBasename.mockReturnValue('sonnet-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('sonnet-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.model).toBe('claude-sonnet-4-5')
+    })
+
+    it('should parse gpt-5-2-codex model from frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['codex-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+model: gpt-5-2-codex
+---
+# Codex Agent
+This agent uses GPT-5.2 Codex.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/codex-agent.md')
+      mockBasename.mockReturnValue('codex-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('codex-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.model).toBe('gpt-5-2-codex')
+    })
+
+    it('should use default model when no frontmatter present', async () => {
+      // Arrange
+      const mockFiles = ['no-frontmatter.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `# No Frontmatter Agent
+This agent has no frontmatter.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/no-frontmatter.md')
+      mockBasename.mockReturnValue('no-frontmatter.md')
+
+      // Act
+      const agent = await agentManager.getAgent('no-frontmatter')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.model).toBe(DEFAULT_MODEL)
+    })
+
+    it('should use default model for invalid model in frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['invalid-model.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+model: invalid-model-name
+---
+# Invalid Model Agent
+This agent has an invalid model specified.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/invalid-model.md')
+      mockBasename.mockReturnValue('invalid-model.md')
+
+      // Act
+      const agent = await agentManager.getAgent('invalid-model')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.model).toBe(DEFAULT_MODEL)
+    })
+
+    it('should store frontmatter metadata in agent definition', async () => {
+      // Arrange
+      const mockFiles = ['metadata-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+model: claude-opus-4-5
+author: test-author
+version: 1.0.0
+---
+# Metadata Agent
+This agent has additional metadata.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/metadata-agent.md')
+      mockBasename.mockReturnValue('metadata-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('metadata-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.frontmatter).toBeDefined()
+      expect(agent!.frontmatter!['model']).toBe('claude-opus-4-5')
+      expect(agent!.frontmatter!['author']).toBe('test-author')
+      expect(agent!.frontmatter!['version']).toBe('1.0.0')
+    })
+
+    it('should not include frontmatter property when no frontmatter present', async () => {
+      // Arrange
+      const mockFiles = ['plain-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `# Plain Agent
+No frontmatter here.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/plain-agent.md')
+      mockBasename.mockReturnValue('plain-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('plain-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.frontmatter).toBeUndefined()
     })
   })
 })

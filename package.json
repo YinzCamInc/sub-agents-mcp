@@ -68,7 +68,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "glob": "^13.0.0",
+    "gray-matter": "^4.0.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

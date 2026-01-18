@@ -236,6 +236,10 @@ export class AgentExecutor {
         // Codex uses different command structure: codex exec --json "prompt"
         command = 'codex'
         args = ['exec', '--json', formattedPrompt]
+        // Add model flag for codex if specified
+        if (params.model) {
+          args.push('--model', params.model)
+        }
       } else {
         // Cursor, Claude, Gemini use similar interface with -p flag
         // Claude/Gemini: Use stream-json for real-time output (avoids buffering issues)
@@ -256,6 +260,11 @@ export class AgentExecutor {
             : this.config.agentType === 'gemini'
               ? 'gemini'
               : 'cursor-agent'
+
+        // Add model flag if specified (supported by claude, cursor-agent, gemini)
+        if (params.model) {
+          args.push('--model', params.model)
+        }
 
         // Add API key for cursor-cli if available
         if (this.config.agentType === 'cursor' && process.env['CLI_API_KEY']) {
@@ -287,6 +296,7 @@ export class AgentExecutor {
       this.logger.debug('Executing with spawn', {
         command,
         cwd: params.cwd || process.cwd(),
+        model: params.model || 'default',
       })
 
       // Spawn process

@@ -1,7 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import matter from 'gray-matter'
 import type { ServerConfig } from 'src/config/ServerConfig'
-import type { AgentDefinition } from 'src/types/AgentDefinition'
+import {
+  type AgentDefinition,
+  type AgentModelId,
+  DEFAULT_MODEL,
+  MODEL_MAP,
+} from 'src/types/AgentDefinition'
 import { type Logger, Logger as LoggerClass } from 'src/utils/Logger'
 
 /**
@@ -143,7 +149,18 @@ export class AgentManager {
   }
 
   /**
+   * Validates if a string is a valid AgentModelId.
+   *
+   * @param model - The model string to validate
+   * @returns True if the model is a valid AgentModelId
+   */
+  private isValidModelId(model: string): model is AgentModelId {
+    return model in MODEL_MAP
+  }
+
+  /**
    * Loads and parses a single agent definition from a file.
+   * Supports YAML frontmatter for model selection and other metadata.
    *
    * @param filePath - Absolute path to the agent definition file
    * @returns Promise resolving to the parsed agent definition or undefined
@@ -152,15 +169,39 @@ export class AgentManager {
     try {
       this.logger.debug('Loading agent definition from file', { filePath })
 
-      const content = await fs.promises.readFile(filePath, 'utf-8')
+      const rawContent = await fs.promises.readFile(filePath, 'utf-8')
       const stats = await fs.promises.stat(filePath)
 
       // Extract agent name from filename (without extension)
       const fileName = path.basename(filePath)
       const agentName = fileName.replace(/\.(md|txt)$/, '')
 
+      // Parse frontmatter using gray-matter
+      const { data: frontmatter, content } = matter(rawContent)
+
+      // Extract model from frontmatter, validate it, or use default
+      let model: AgentModelId = DEFAULT_MODEL
+      const frontmatterModel = frontmatter['model']
+      if (frontmatterModel && typeof frontmatterModel === 'string') {
+        if (this.isValidModelId(frontmatterModel)) {
+          model = frontmatterModel
+        } else {
+          this.logger.warn('Invalid model in frontmatter, using default', {
+            filePath,
+            invalidModel: frontmatterModel,
+            defaultModel: DEFAULT_MODEL,
+          })
+        }
+      }
+
       // Parse description from content (first line or first heading)
       const description = this.extractDescription(content)
+
+      // Build frontmatter record if there are any keys
+      const hasFrontmatter = Object.keys(frontmatter).length > 0
+      const frontmatterRecord: Record<string, unknown> | undefined = hasFrontmatter
+        ? (frontmatter as Record<string, unknown>)
+        : undefined
 
       const agentDefinition: AgentDefinition = {
         name: agentName,
@@ -168,11 +209,15 @@ export class AgentManager {
         content,
         filePath,
         lastModified: stats.mtime,
+        model,
+        ...(frontmatterRecord !== undefined && { frontmatter: frontmatterRecord }),
       }
 
       this.logger.debug('Agent definition parsed successfully', {
         name: agentName,
         description,
+        model,
+        hasFrontmatter,
         contentLength: content.length,
         lastModified: stats.mtime?.toISOString() ?? 'unknown',
       })

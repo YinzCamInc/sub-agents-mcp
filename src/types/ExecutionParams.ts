@@ -26,6 +26,13 @@ export interface ExecutionParams {
    * These are passed to the Claude Code CLI when executing the agent.
    */
   extra_args?: string[]
+
+  /**
+   * Optional model override for agent execution.
+   * If provided, overrides the model specified in the agent's frontmatter.
+   * Should be an actual API model name (e.g., 'claude-opus-4-20250514').
+   */
+  model?: string
 }
 
 /**

@@ -7,11 +7,14 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { glob } from 'glob'
 import type { AgentManager } from 'src/agents/AgentManager'
 import type { AgentExecutionResult, AgentExecutor } from 'src/execution/AgentExecutor'
 import { formatSessionHistory } from 'src/session/SessionHistoryFormatter'
 import type { SessionManager } from 'src/session/SessionManager'
-import type { AgentDefinition } from 'src/types/AgentDefinition'
+import { type AgentDefinition, type AgentModelId, MODEL_MAP } from 'src/types/AgentDefinition'
 import type { ExecutionParams } from 'src/types/ExecutionParams'
 import { type LogLevel, Logger } from 'src/utils/Logger'
 
@@ -49,6 +52,7 @@ interface McpResponseData {
   execution_time: number
   status: 'success' | 'partial' | 'error'
   request_id?: string
+  output_path?: string
 }
 
 /**
@@ -80,6 +84,28 @@ interface RunAgentInputSchema {
       type: 'string'
       description: string
     }
+    output: {
+      type: 'string'
+      description: string
+    }
+    model: {
+      type: 'string'
+      description: string
+    }
+    context_files: {
+      type: 'array'
+      items: { type: 'string' }
+      description: string
+    }
+    context_globs: {
+      type: 'array'
+      items: { type: 'string' }
+      description: string
+    }
+    context_data: {
+      type: 'object'
+      description: string
+    }
   }
   required: string[]
 }
@@ -99,6 +125,39 @@ interface RunAgentParams {
    * Must be alphanumeric with hyphens and underscores only (max 100 characters).
    */
   session_id?: string | undefined
+  /**
+   * Output file path to save the agent's response (optional)
+   *
+   * When provided, the agent's response will be written to this file.
+   */
+  output?: string | undefined
+  /**
+   * Model override for agent execution (optional)
+   *
+   * If provided, overrides the model specified in the agent's frontmatter.
+   * Valid values: 'claude-opus-4', 'claude-sonnet-4', 'gpt-5-codex'
+   */
+  model?: string | undefined
+  /**
+   * Context files to include in the prompt (optional)
+   *
+   * List of file paths whose content will be read and appended to the prompt.
+   */
+  context_files?: string[] | undefined
+  /**
+   * Glob patterns for context files (optional)
+   *
+   * Glob patterns (e.g., "reviews/*.md") that will be expanded and their contents
+   * appended to the prompt.
+   */
+  context_globs?: string[] | undefined
+  /**
+   * Structured context data to include in the prompt (optional)
+   *
+   * Object containing structured data (iteration, task, etc.) that will be
+   * JSON-serialized and included in the context section of the prompt.
+   */
+  context_data?: Record<string, unknown> | undefined
 }
 
 /**
@@ -120,7 +179,7 @@ export class RunAgentTool {
     properties: {
       agent: {
         type: 'string',
-        description: 'Agent name exactly as listed in list_agents resource.',
+        description: 'Agent name exactly as listed in list_agents resource or tool.',
       },
       prompt: {
         type: 'string',
@@ -141,6 +200,33 @@ export class RunAgentTool {
         type: 'string',
         description:
           'Session ID for continuing previous conversation context (optional). If omitted, a new session will be auto-generated and returned in response metadata. Reuse the returned session_id in subsequent calls to maintain context continuity.',
+      },
+      output: {
+        type: 'string',
+        description:
+          'Output file path to save the agent response (optional). If provided, the result will be written to this file.',
+      },
+      model: {
+        type: 'string',
+        description:
+          "Model override for agent execution (optional). Overrides the model from agent's frontmatter. Valid values: 'claude-opus-4-5' (Opus 4.5), 'claude-sonnet-4-5' (Sonnet 4.5), 'gpt-5-2-codex' (GPT-5.2 Codex).",
+      },
+      context_files: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'List of file paths to include as context (optional). Contents will be read and appended to the prompt.',
+      },
+      context_globs: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Glob patterns for context files (optional). Patterns like "reviews/*.md" will be expanded and all matching files included as context.',
+      },
+      context_data: {
+        type: 'object',
+        description:
+          'Structured context data (optional). Object containing iteration, task, phase, or other structured data to pass to the agent.',
       },
     },
     required: ['agent', 'prompt', 'cwd'],
@@ -223,6 +309,7 @@ export class RunAgentTool {
           requestId,
           agentName: agentDefinition.name,
           agentDescription: agentDefinition.description,
+          agentModel: agentDefinition.model,
         })
       }
 
@@ -233,8 +320,112 @@ export class RunAgentTool {
         // Use agent definition content if available (already loaded above)
         const agentContext = agentDefinition?.content ?? validatedParams.agent
 
+        // Determine model: override > agent frontmatter > default
+        let modelApiName: string | undefined
+        if (validatedParams.model) {
+          // User provided model override
+          modelApiName = MODEL_MAP[validatedParams.model as AgentModelId]
+          this.logger.debug('Using model override', {
+            requestId,
+            modelId: validatedParams.model,
+            modelApiName,
+          })
+        } else if (agentDefinition?.model) {
+          // Use model from agent frontmatter
+          modelApiName = MODEL_MAP[agentDefinition.model]
+          this.logger.debug('Using model from agent frontmatter', {
+            requestId,
+            modelId: agentDefinition.model,
+            modelApiName,
+          })
+        }
+
+        // Build context section from files, globs, and data
+        const contextSections: string[] = []
+
+        // Read and append context files to prompt
+        if (validatedParams.context_files && validatedParams.context_files.length > 0) {
+          for (const filePath of validatedParams.context_files) {
+            try {
+              const resolvedPath = path.isAbsolute(filePath)
+                ? filePath
+                : path.resolve(validatedParams.cwd, filePath)
+              const content = await fs.promises.readFile(resolvedPath, 'utf-8')
+              contextSections.push(`## File: ${filePath}\n\`\`\`\n${content}\n\`\`\``)
+              this.logger.debug('Context file loaded', {
+                requestId,
+                filePath: resolvedPath,
+                contentLength: content.length,
+              })
+            } catch (error) {
+              this.logger.warn('Failed to read context file', {
+                requestId,
+                filePath,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          }
+        }
+
+        // Expand glob patterns and read matching files
+        if (validatedParams.context_globs && validatedParams.context_globs.length > 0) {
+          for (const pattern of validatedParams.context_globs) {
+            try {
+              const cwd = validatedParams.cwd
+              const matches = await glob(pattern, { cwd, nodir: true })
+              this.logger.debug('Glob pattern expanded', {
+                requestId,
+                pattern,
+                matchCount: matches.length,
+              })
+
+              for (const match of matches) {
+                try {
+                  const resolvedPath = path.resolve(cwd, match)
+                  const content = await fs.promises.readFile(resolvedPath, 'utf-8')
+                  contextSections.push(`## File: ${match}\n\`\`\`\n${content}\n\`\`\``)
+                  this.logger.debug('Glob match file loaded', {
+                    requestId,
+                    filePath: match,
+                    contentLength: content.length,
+                  })
+                } catch (error) {
+                  this.logger.warn('Failed to read glob match file', {
+                    requestId,
+                    filePath: match,
+                    error: error instanceof Error ? error.message : String(error),
+                  })
+                }
+              }
+            } catch (error) {
+              this.logger.warn('Failed to expand glob pattern', {
+                requestId,
+                pattern,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          }
+        }
+
+        // Add structured context data
+        if (validatedParams.context_data) {
+          contextSections.push(
+            `## Context Data\n\`\`\`json\n${JSON.stringify(validatedParams.context_data, null, 2)}\n\`\`\``
+          )
+          this.logger.debug('Context data added', {
+            requestId,
+            keys: Object.keys(validatedParams.context_data),
+          })
+        }
+
+        // Build final prompt with context
+        let promptWithContext = validatedParams.prompt
+        if (contextSections.length > 0) {
+          promptWithContext = `# Context\n\n${contextSections.join('\n\n')}\n\n---\n\n# Instructions\n\n${validatedParams.prompt}`
+        }
+
         // Load session history if session_id is provided and SessionManager is available
-        let promptWithHistory = validatedParams.prompt
+        let promptWithHistory = promptWithContext
         if (sessionId && this.sessionManager) {
           try {
             // CRITICAL: Pass agent_type to enforce sub-agent isolation
@@ -275,6 +466,7 @@ export class RunAgentTool {
           ...(validatedParams.extra_args !== undefined && {
             extra_args: validatedParams.extra_args,
           }),
+          ...(modelApiName !== undefined && { model: modelApiName }),
         }
 
         // Report progress: Executing agent
@@ -337,9 +529,45 @@ export class RunAgentTool {
           }
         }
 
+        // Write output to file if output parameter is provided
+        let outputFilePath: string | undefined
+        if (validatedParams.output) {
+          try {
+            outputFilePath = path.isAbsolute(validatedParams.output)
+              ? validatedParams.output
+              : path.resolve(validatedParams.cwd, validatedParams.output)
+
+            // Ensure directory exists
+            const outputDir = path.dirname(outputFilePath)
+            await fs.promises.mkdir(outputDir, { recursive: true })
+
+            // Write result to file
+            const outputContent = result.stdout || ''
+            await fs.promises.writeFile(outputFilePath, outputContent, 'utf-8')
+
+            this.logger.info('Output written to file', {
+              requestId,
+              outputPath: outputFilePath,
+              contentLength: outputContent.length,
+            })
+          } catch (error) {
+            this.logger.warn('Failed to write output file', {
+              requestId,
+              outputPath: validatedParams.output,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+
         // Mark MCP request as completed
 
-        return this.formatExecutionResponse(result, validatedParams.agent, requestId, sessionId)
+        return this.formatExecutionResponse(
+          result,
+          validatedParams.agent,
+          requestId,
+          sessionId,
+          outputFilePath
+        )
       }
 
       // Fallback response if executor is not available
@@ -485,12 +713,125 @@ export class RunAgentTool {
       }
     }
 
+    // Validate optional output parameter
+    if (p['output'] !== undefined) {
+      if (typeof p['output'] !== 'string') {
+        throw new Error('Output parameter must be a string if provided')
+      }
+
+      const outputPath = p['output'].trim()
+      if (outputPath === '') {
+        throw new Error('Invalid output parameter: cannot be empty')
+      }
+
+      if (outputPath.length > 1000) {
+        throw new Error('Output path too long (max 1000 characters)')
+      }
+
+      // Basic path security check
+      if (outputPath.includes('\0')) {
+        throw new Error('Invalid output path: contains null bytes')
+      }
+    }
+
+    // Validate optional model parameter
+    if (p['model'] !== undefined) {
+      if (typeof p['model'] !== 'string') {
+        throw new Error('Model parameter must be a string if provided')
+      }
+
+      const model = p['model'].trim()
+      if (model === '') {
+        throw new Error('Invalid model parameter: cannot be empty')
+      }
+
+      // Validate model is a known model ID
+      const validModels = ['claude-opus-4-5', 'claude-sonnet-4-5', 'gpt-5-2-codex']
+      if (!validModels.includes(model)) {
+        throw new Error(`Invalid model parameter: must be one of ${validModels.join(', ')}`)
+      }
+    }
+
+    // Validate optional context_files parameter
+    if (p['context_files'] !== undefined) {
+      if (!Array.isArray(p['context_files'])) {
+        throw new Error('Context files parameter must be an array if provided')
+      }
+
+      if (p['context_files'].length > 20) {
+        throw new Error('Too many context files (max 20 allowed)')
+      }
+
+      for (const [index, file] of p['context_files'].entries()) {
+        if (typeof file !== 'string') {
+          throw new Error(`Context file at index ${index} must be a string`)
+        }
+
+        if (file.length > 1000) {
+          throw new Error(`Context file path at index ${index} too long (max 1000 characters)`)
+        }
+
+        // Basic path security check
+        if (file.includes('\0')) {
+          throw new Error(`Context file path at index ${index} contains invalid characters`)
+        }
+      }
+    }
+
+    // Validate optional context_globs parameter
+    if (p['context_globs'] !== undefined) {
+      if (!Array.isArray(p['context_globs'])) {
+        throw new Error('Context globs parameter must be an array if provided')
+      }
+
+      if (p['context_globs'].length > 10) {
+        throw new Error('Too many context glob patterns (max 10 allowed)')
+      }
+
+      for (const [index, pattern] of p['context_globs'].entries()) {
+        if (typeof pattern !== 'string') {
+          throw new Error(`Context glob at index ${index} must be a string`)
+        }
+
+        if (pattern.length > 500) {
+          throw new Error(`Context glob pattern at index ${index} too long (max 500 characters)`)
+        }
+
+        // Basic security check - no null bytes
+        if (pattern.includes('\0')) {
+          throw new Error(`Context glob pattern at index ${index} contains invalid characters`)
+        }
+      }
+    }
+
+    // Validate optional context_data parameter
+    if (p['context_data'] !== undefined) {
+      if (
+        typeof p['context_data'] !== 'object' ||
+        p['context_data'] === null ||
+        Array.isArray(p['context_data'])
+      ) {
+        throw new Error('Context data parameter must be an object if provided')
+      }
+
+      // Check serialized size isn't too large
+      const serialized = JSON.stringify(p['context_data'])
+      if (serialized.length > 50000) {
+        throw new Error('Context data too large (max 50KB when serialized)')
+      }
+    }
+
     return {
       agent: agentName,
       prompt: prompt,
       cwd: cwd,
       extra_args: p['extra_args'] as string[] | undefined,
       session_id: p['session_id'] as string | undefined,
+      output: p['output'] as string | undefined,
+      model: p['model'] as string | undefined,
+      context_files: p['context_files'] as string[] | undefined,
+      context_globs: p['context_globs'] as string[] | undefined,
+      context_data: p['context_data'] as Record<string, unknown> | undefined,
     }
   }
 
@@ -592,13 +933,15 @@ export class RunAgentTool {
    * @param agentName - Name of the executed agent
    * @param requestId - Request tracking ID
    * @param sessionId - Session ID if session management is used
+   * @param outputPath - Path where output was written (if output parameter was provided)
    * @returns Formatted MCP response
    */
   private formatExecutionResponse(
     result: AgentExecutionResult,
     agentName: string,
     requestId?: string,
-    sessionId?: string
+    sessionId?: string,
+    outputPath?: string
   ): McpToolResponse {
     // Determine if response indicates an error (agent-level or process-level)
     const isError = this.isAgentError(result.resultJson, result.exitCode)
@@ -628,6 +971,7 @@ export class RunAgentTool {
       status: isSuccess ? 'success' : isPartialSuccess ? 'partial' : 'error',
       ...(sessionId && { session_id: sessionId }),
       ...(requestId && { request_id: requestId }),
+      ...(outputPath && { output_path: outputPath }),
     }
 
     const response: McpToolResponse = {

@@ -30,9 +30,16 @@ import type { ServerConfig } from 'src/config/ServerConfig'
 import { AgentExecutor, createExecutionConfig } from 'src/execution/AgentExecutor'
 import { AgentResources } from 'src/resources/AgentResources'
 import { SessionManager } from 'src/session/SessionManager'
+import { ContinueWorkflowTool } from 'src/tools/ContinueWorkflowTool'
+import { ListAgentsTool } from 'src/tools/ListAgentsTool'
+import { RejectWorkflowTool } from 'src/tools/RejectWorkflowTool'
 import { RunAgentTool } from 'src/tools/RunAgentTool'
+import { RunAgentsTool } from 'src/tools/RunAgentsTool'
+import { RunVerifiersTool } from 'src/tools/RunVerifiersTool'
+import { WorkflowStatusTool } from 'src/tools/WorkflowStatusTool'
 import { AppError, ValidationError } from 'src/utils/ErrorHandler'
 import { Logger } from 'src/utils/Logger'
+import { WorkflowManager } from 'src/workflow/WorkflowManager'
 
 /**
  * Server information interface for MCP server identification
@@ -56,7 +63,14 @@ export class McpServer {
   private config: ServerConfig
   private agentManager: AgentManager
   private agentExecutor: AgentExecutor
+  private workflowManager: WorkflowManager
   private runAgentTool: RunAgentTool
+  private listAgentsTool: ListAgentsTool
+  private runAgentsTool: RunAgentsTool
+  private runVerifiersTool: RunVerifiersTool
+  private workflowStatusTool: WorkflowStatusTool
+  private continueWorkflowTool: ContinueWorkflowTool
+  private rejectWorkflowTool: RejectWorkflowTool
   private agentResources: AgentResources
   private sessionManager?: SessionManager
 
@@ -103,7 +117,25 @@ export class McpServer {
       this.log('info', 'Session management disabled')
     }
 
+    // Initialize workflow manager
+    this.workflowManager = new WorkflowManager()
+
+    // Initialize tools
     this.runAgentTool = new RunAgentTool(this.agentExecutor, this.agentManager, this.sessionManager)
+    this.listAgentsTool = new ListAgentsTool(this.agentManager)
+    this.runAgentsTool = new RunAgentsTool(
+      this.agentExecutor,
+      this.agentManager,
+      this.workflowManager
+    )
+    this.runVerifiersTool = new RunVerifiersTool(
+      this.agentExecutor,
+      this.agentManager,
+      this.workflowManager
+    )
+    this.workflowStatusTool = new WorkflowStatusTool(this.workflowManager)
+    this.continueWorkflowTool = new ContinueWorkflowTool(this.workflowManager)
+    this.rejectWorkflowTool = new RejectWorkflowTool(this.workflowManager)
     this.agentResources = new AgentResources(this.agentManager)
 
     // Initialize MCP server with capabilities
@@ -201,6 +233,36 @@ export class McpServer {
                 description: this.runAgentTool.description,
                 inputSchema: this.runAgentTool.inputSchema,
               },
+              {
+                name: this.listAgentsTool.name,
+                description: this.listAgentsTool.description,
+                inputSchema: this.listAgentsTool.inputSchema,
+              },
+              {
+                name: this.runAgentsTool.name,
+                description: this.runAgentsTool.description,
+                inputSchema: this.runAgentsTool.inputSchema,
+              },
+              {
+                name: this.runVerifiersTool.name,
+                description: this.runVerifiersTool.description,
+                inputSchema: this.runVerifiersTool.inputSchema,
+              },
+              {
+                name: this.workflowStatusTool.name,
+                description: this.workflowStatusTool.description,
+                inputSchema: this.workflowStatusTool.inputSchema,
+              },
+              {
+                name: this.continueWorkflowTool.name,
+                description: this.continueWorkflowTool.description,
+                inputSchema: this.continueWorkflowTool.inputSchema,
+              },
+              {
+                name: this.rejectWorkflowTool.name,
+                description: this.rejectWorkflowTool.description,
+                inputSchema: this.rejectWorkflowTool.inputSchema,
+              },
             ],
           }
 
@@ -228,19 +290,41 @@ export class McpServer {
           this.log('debug', 'Received call_tool request', { tool: params.name })
 
           try {
-            if (params.name === 'run_agent') {
-              const result = await this.runAgentTool.execute(params.arguments)
+            let result: unknown
 
-              this.log('info', 'Tool execution completed', {
-                tool: params.name,
-                responseTime: Date.now() - startTime,
-                success: true,
-              })
-
-              return result as CallToolResult
+            switch (params.name) {
+              case 'run_agent':
+                result = await this.runAgentTool.execute(params.arguments)
+                break
+              case 'list_agents':
+                result = await this.listAgentsTool.execute(params.arguments)
+                break
+              case 'run_agents':
+                result = await this.runAgentsTool.execute(params.arguments)
+                break
+              case 'run_verifiers':
+                result = await this.runVerifiersTool.execute(params.arguments)
+                break
+              case 'workflow_status':
+                result = await this.workflowStatusTool.execute(params.arguments)
+                break
+              case 'continue_workflow':
+                result = await this.continueWorkflowTool.execute(params.arguments)
+                break
+              case 'reject_workflow':
+                result = await this.rejectWorkflowTool.execute(params.arguments)
+                break
+              default:
+                throw new ValidationError(`Unknown tool: ${params.name}`, 'UNKNOWN_TOOL')
             }
 
-            throw new ValidationError(`Unknown tool: ${params.name}`, 'UNKNOWN_TOOL')
+            this.log('info', 'Tool execution completed', {
+              tool: params.name,
+              responseTime: Date.now() - startTime,
+              success: true,
+            })
+
+            return result as CallToolResult
           } catch (error) {
             this.log('error', 'Tool execution failed', {
               tool: params.name,
@@ -390,6 +474,36 @@ export class McpServer {
         description: this.runAgentTool.description,
         inputSchema: this.runAgentTool.inputSchema,
       },
+      {
+        name: this.listAgentsTool.name,
+        description: this.listAgentsTool.description,
+        inputSchema: this.listAgentsTool.inputSchema,
+      },
+      {
+        name: this.runAgentsTool.name,
+        description: this.runAgentsTool.description,
+        inputSchema: this.runAgentsTool.inputSchema,
+      },
+      {
+        name: this.runVerifiersTool.name,
+        description: this.runVerifiersTool.description,
+        inputSchema: this.runVerifiersTool.inputSchema,
+      },
+      {
+        name: this.workflowStatusTool.name,
+        description: this.workflowStatusTool.description,
+        inputSchema: this.workflowStatusTool.inputSchema,
+      },
+      {
+        name: this.continueWorkflowTool.name,
+        description: this.continueWorkflowTool.description,
+        inputSchema: this.continueWorkflowTool.inputSchema,
+      },
+      {
+        name: this.rejectWorkflowTool.name,
+        description: this.rejectWorkflowTool.description,
+        inputSchema: this.rejectWorkflowTool.inputSchema,
+      },
     ]
   }
 
@@ -413,10 +527,24 @@ export class McpServer {
    * @returns Promise resolving to tool response
    */
   async callTool(toolName: string, params: unknown): Promise<unknown> {
-    if (toolName === 'run_agent') {
-      return await this.runAgentTool.execute(params)
+    switch (toolName) {
+      case 'run_agent':
+        return await this.runAgentTool.execute(params)
+      case 'list_agents':
+        return await this.listAgentsTool.execute(params)
+      case 'run_agents':
+        return await this.runAgentsTool.execute(params)
+      case 'run_verifiers':
+        return await this.runVerifiersTool.execute(params)
+      case 'workflow_status':
+        return await this.workflowStatusTool.execute(params)
+      case 'continue_workflow':
+        return await this.continueWorkflowTool.execute(params)
+      case 'reject_workflow':
+        return await this.rejectWorkflowTool.execute(params)
+      default:
+        throw new ValidationError(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL')
     }
-    throw new ValidationError(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL')
   }
 
   /**
