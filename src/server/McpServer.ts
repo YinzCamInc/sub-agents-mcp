@@ -36,6 +36,8 @@ import { RejectWorkflowTool } from 'src/tools/RejectWorkflowTool'
 import { RunAgentTool } from 'src/tools/RunAgentTool'
 import { RunAgentsTool } from 'src/tools/RunAgentsTool'
 import { RunVerifiersTool } from 'src/tools/RunVerifiersTool'
+import { StartWorkflowTool } from 'src/tools/StartWorkflowTool'
+import { StepWorkflowTool } from 'src/tools/StepWorkflowTool'
 import { WorkflowStatusTool } from 'src/tools/WorkflowStatusTool'
 import { AppError, ValidationError } from 'src/utils/ErrorHandler'
 import { Logger } from 'src/utils/Logger'
@@ -71,6 +73,8 @@ export class McpServer {
   private workflowStatusTool: WorkflowStatusTool
   private continueWorkflowTool: ContinueWorkflowTool
   private rejectWorkflowTool: RejectWorkflowTool
+  private startWorkflowTool: StartWorkflowTool
+  private stepWorkflowTool: StepWorkflowTool
   private agentResources: AgentResources
   private sessionManager?: SessionManager
 
@@ -136,6 +140,16 @@ export class McpServer {
     this.workflowStatusTool = new WorkflowStatusTool(this.workflowManager)
     this.continueWorkflowTool = new ContinueWorkflowTool(this.workflowManager)
     this.rejectWorkflowTool = new RejectWorkflowTool(this.workflowManager)
+    this.startWorkflowTool = new StartWorkflowTool(
+      this.agentExecutor,
+      this.agentManager,
+      this.workflowManager
+    )
+    this.stepWorkflowTool = new StepWorkflowTool(
+      this.agentExecutor,
+      this.agentManager,
+      this.workflowManager
+    )
     this.agentResources = new AgentResources(this.agentManager)
 
     // Initialize MCP server with capabilities
@@ -263,6 +277,16 @@ export class McpServer {
                 description: this.rejectWorkflowTool.description,
                 inputSchema: this.rejectWorkflowTool.inputSchema,
               },
+              {
+                name: this.startWorkflowTool.name,
+                description: this.startWorkflowTool.description,
+                inputSchema: this.startWorkflowTool.inputSchema,
+              },
+              {
+                name: this.stepWorkflowTool.name,
+                description: this.stepWorkflowTool.description,
+                inputSchema: this.stepWorkflowTool.inputSchema,
+              },
             ],
           }
 
@@ -313,6 +337,12 @@ export class McpServer {
                 break
               case 'reject_workflow':
                 result = await this.rejectWorkflowTool.execute(params.arguments)
+                break
+              case 'start_workflow':
+                result = await this.startWorkflowTool.execute(params.arguments)
+                break
+              case 'step_workflow':
+                result = await this.stepWorkflowTool.execute(params.arguments)
                 break
               default:
                 throw new ValidationError(`Unknown tool: ${params.name}`, 'UNKNOWN_TOOL')
@@ -504,6 +534,16 @@ export class McpServer {
         description: this.rejectWorkflowTool.description,
         inputSchema: this.rejectWorkflowTool.inputSchema,
       },
+      {
+        name: this.startWorkflowTool.name,
+        description: this.startWorkflowTool.description,
+        inputSchema: this.startWorkflowTool.inputSchema,
+      },
+      {
+        name: this.stepWorkflowTool.name,
+        description: this.stepWorkflowTool.description,
+        inputSchema: this.stepWorkflowTool.inputSchema,
+      },
     ]
   }
 
@@ -542,6 +582,10 @@ export class McpServer {
         return await this.continueWorkflowTool.execute(params)
       case 'reject_workflow':
         return await this.rejectWorkflowTool.execute(params)
+      case 'start_workflow':
+        return await this.startWorkflowTool.execute(params)
+      case 'step_workflow':
+        return await this.stepWorkflowTool.execute(params)
       default:
         throw new ValidationError(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL')
     }

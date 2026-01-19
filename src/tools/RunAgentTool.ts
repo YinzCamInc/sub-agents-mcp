@@ -17,6 +17,7 @@ import type { SessionManager } from 'src/session/SessionManager'
 import { type AgentDefinition, type AgentModelId, MODEL_MAP } from 'src/types/AgentDefinition'
 import type { ExecutionParams } from 'src/types/ExecutionParams'
 import { type LogLevel, Logger } from 'src/utils/Logger'
+import { validateTokenBudget } from 'src/utils/TokenBudget'
 
 /**
  * MCP tool content type for text responses
@@ -459,6 +460,37 @@ export class RunAgentTool {
           }
         }
 
+        // Check token budget with model-specific limits
+        const totalContext = promptWithHistory + (agentContext || '')
+        const budgetValidation = validateTokenBudget(
+          totalContext,
+          modelApiName || agentDefinition?.model
+        )
+        let tokenWarning: string | undefined
+
+        if (budgetValidation.error) {
+          tokenWarning = budgetValidation.error
+          if (budgetValidation.recommendation) {
+            tokenWarning += `\n\n${budgetValidation.recommendation}`
+          }
+          this.logger.warn('Context size exceeds limit', {
+            requestId,
+            tokens: budgetValidation.estimate.tokens,
+            limit: budgetValidation.estimate.limit,
+            percentage: `${Math.round(budgetValidation.estimate.percentage * 100)}%`,
+            model: budgetValidation.estimate.model,
+          })
+        } else if (budgetValidation.warning) {
+          tokenWarning = budgetValidation.warning
+          this.logger.info('Context size approaching limit', {
+            requestId,
+            tokens: budgetValidation.estimate.tokens,
+            limit: budgetValidation.estimate.limit,
+            percentage: `${Math.round(budgetValidation.estimate.percentage * 100)}%`,
+            model: budgetValidation.estimate.model,
+          })
+        }
+
         const executionParams: ExecutionParams = {
           agent: agentContext,
           prompt: promptWithHistory,
@@ -566,7 +598,8 @@ export class RunAgentTool {
           validatedParams.agent,
           requestId,
           sessionId,
-          outputFilePath
+          outputFilePath,
+          tokenWarning
         )
       }
 
@@ -934,6 +967,7 @@ export class RunAgentTool {
    * @param requestId - Request tracking ID
    * @param sessionId - Session ID if session management is used
    * @param outputPath - Path where output was written (if output parameter was provided)
+   * @param tokenWarning - Optional warning about token budget
    * @returns Formatted MCP response
    */
   private formatExecutionResponse(
@@ -941,7 +975,8 @@ export class RunAgentTool {
     agentName: string,
     requestId?: string,
     sessionId?: string,
-    outputPath?: string
+    outputPath?: string,
+    tokenWarning?: string
   ): McpToolResponse {
     // Determine if response indicates an error (agent-level or process-level)
     const isError = this.isAgentError(result.resultJson, result.exitCode)
@@ -963,7 +998,7 @@ export class RunAgentTool {
 
     // Build response data structure (ADR-0003)
     // This object is used in both content[0].text and structuredContent
-    const responseData: McpResponseData = {
+    const responseData: McpResponseData & { token_warning?: string } = {
       result: contentText,
       agent: agentName,
       exit_code: result.exitCode,
@@ -972,6 +1007,7 @@ export class RunAgentTool {
       ...(sessionId && { session_id: sessionId }),
       ...(requestId && { request_id: requestId }),
       ...(outputPath && { output_path: outputPath }),
+      ...(tokenWarning && { token_warning: tokenWarning }),
     }
 
     const response: McpToolResponse = {

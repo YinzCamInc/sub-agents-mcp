@@ -191,15 +191,27 @@ export class ContinueWorkflowTool {
       }
 
       // Record the checkpoint decision
-      const updatedState = await this.workflowManager.recordCheckpoint(
+      let updatedState = await this.workflowManager.recordCheckpoint(
         validatedParams.workflow_id,
         validatedParams.decision,
         validatedParams.feedback
       )
 
+      // Special handling for test-execution phase with 'iterate' decision
+      // In test-execution, 'iterate' means "run the fixer agent", not "start a new iteration"
+      // So we set status to 'verifying' which triggers the fixer step
+      if (validatedParams.decision === 'iterate' && state.phase === 'testing-execution') {
+        // Revert the iteration increment that recordCheckpoint did
+        // because we want to stay in the same iteration until fixer completes
+        updatedState = await this.workflowManager.updateWorkflow(validatedParams.workflow_id, {
+          iteration: state.iteration, // Keep same iteration
+          status: 'verifying', // This triggers fixer agent in executeTestExecutionStep
+        })
+      }
+
       // If approving and next_phase is specified, transition to it
       if (validatedParams.decision === 'approve' && validatedParams.next_phase) {
-        await this.workflowManager.updateWorkflow(validatedParams.workflow_id, {
+        updatedState = await this.workflowManager.updateWorkflow(validatedParams.workflow_id, {
           phase: validatedParams.next_phase,
           iteration: 1,
           status: 'working',
@@ -218,9 +230,16 @@ export class ContinueWorkflowTool {
           break
 
         case 'iterate':
-          responseText += `🔁 Starting iteration ${updatedState.iteration} with feedback.\n\n`
-          responseText += `**Feedback:** ${validatedParams.feedback}\n\n`
-          responseText += 'The agents should now incorporate this feedback.\n'
+          if (state.phase === 'testing-execution') {
+            responseText += '🔧 Running fixer agent to address test failures.\n\n'
+            responseText += `**Feedback:** ${validatedParams.feedback}\n\n`
+            responseText +=
+              'The fixer agent will attempt to fix the failing tests, then tests will be re-run.\n'
+          } else {
+            responseText += `🔁 Starting iteration ${updatedState.iteration} with feedback.\n\n`
+            responseText += `**Feedback:** ${validatedParams.feedback}\n\n`
+            responseText += 'The agents should now incorporate this feedback.\n'
+          }
           break
 
         case 'approve':

@@ -5,6 +5,15 @@
  * collects their outputs for workflow orchestration.
  */
 
+/**
+ * Token budget constants for context size warnings.
+ */
+const TOKEN_BUDGET = {
+  WARNING_CHARS: 100_000,
+  LIMIT_CHARS: 400_000,
+  CHARS_PER_TOKEN: 4,
+} as const
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { glob } from 'glob'
@@ -389,6 +398,24 @@ export class RunAgentsTool {
         ? `# Context\n${contextSection}\n---\n\n# Instructions\n\n${validatedParams.prompt}`
         : validatedParams.prompt
 
+      // Check token budget
+      let tokenWarning: string | undefined
+      const estimatedTokens = Math.ceil(fullPrompt.length / TOKEN_BUDGET.CHARS_PER_TOKEN)
+      if (fullPrompt.length > TOKEN_BUDGET.LIMIT_CHARS) {
+        tokenWarning = `⚠️ CONTEXT SIZE WARNING: Shared context (${fullPrompt.length.toLocaleString()} chars, ~${estimatedTokens.toLocaleString()} tokens) exceeds recommended limit.`
+        this.logger.warn('Context size exceeds limit', {
+          requestId,
+          contextSize: fullPrompt.length,
+          estimatedTokens,
+        })
+      } else if (fullPrompt.length > TOKEN_BUDGET.WARNING_CHARS) {
+        tokenWarning = `ℹ️ Large shared context (${fullPrompt.length.toLocaleString()} chars, ~${estimatedTokens.toLocaleString()} tokens).`
+        this.logger.info('Context size approaching limit', {
+          requestId,
+          contextSize: fullPrompt.length,
+        })
+      }
+
       // Determine output directory
       const outputDir = validatedParams.output_dir
         ? path.isAbsolute(validatedParams.output_dir)
@@ -484,6 +511,9 @@ export class RunAgentsTool {
 
       // Build response text
       let responseText = '## Parallel Agent Execution Results\n\n'
+      if (tokenWarning) {
+        responseText += `${tokenWarning}\n\n`
+      }
       responseText += `- **Total**: ${summary.total}\n`
       responseText += `- **Successful**: ${summary.successful}\n`
       responseText += `- **Failed**: ${summary.failed}\n\n`

@@ -39,6 +39,7 @@ Choose **sub-agents-mcp** for production use with reliability features. Choose *
 - [Agent Examples](#agent-examples)
 - [Configuration Reference](#configuration-reference)
 - [Session Management](#session-management)
+- [Multi-Agent Workflows](#multi-agent-workflows)
 - [Troubleshooting](#troubleshooting)
 - [Design Philosophy](#design-philosophy)
 - [How It Works](#how-it-works)
@@ -386,6 +387,115 @@ Sessions work well for:
 - **Debugging**: Reviewing exactly what was executed and what results were returned
 
 Note that sessions require additional storage and processing overhead.
+
+## Multi-Agent Workflows
+
+This server supports advanced multi-agent workflows with parallel execution, iterative refinement, and human checkpoints.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `run_agent` | Execute a single agent with context injection and output capture |
+| `run_agents` | Execute multiple agents in parallel |
+| `run_verifiers` | Run verifier agents with reviewer→verifier mapping |
+| `list_agents` | List available agent definitions |
+| `start_workflow` | Start a workflow from YAML definition |
+| `step_workflow` | Execute the next step in a workflow |
+| `workflow_status` | Get current workflow state |
+| `continue_workflow` | Continue from a checkpoint |
+| `reject_workflow` | Reject at checkpoint with feedback |
+
+### Agent Model Selection
+
+Agents can specify their preferred model via frontmatter:
+
+```markdown
+---
+model: claude-opus-4-5
+---
+# My Agent
+
+Agent prompt content...
+```
+
+Supported models:
+- `claude-opus-4-5` (Claude Opus 4.5)
+- `claude-sonnet-4-5` (Claude Sonnet 4.5)  
+- `gpt-5-2-codex` (GPT-5.2 Codex)
+
+### Context Injection
+
+The `run_agent` tool supports rich context injection:
+
+```json
+{
+  "agent": "code-reviewer",
+  "prompt": "Review the authentication module",
+  "cwd": "/path/to/project",
+  "context_files": ["src/auth.ts", "src/auth.test.ts"],
+  "context_globs": ["reviews/*.md"],
+  "context_data": {
+    "iteration": 2,
+    "previous_feedback": "Address security concerns"
+  },
+  "output": "reviews/auth-review-v2.md"
+}
+```
+
+### Workflow Definitions (YAML)
+
+Define complex workflows in YAML:
+
+```yaml
+name: implementation-workflow
+version: 1
+
+variables:
+  output_dir: ".cursor/agents/workflow"
+
+phases:
+  - id: planning
+    type: iterative
+    creator: plan-creator
+    reviewers: [plan-reviewer-architecture, plan-reviewer-security]
+    verifiers: [plan-verifier-architecture, plan-verifier-security]
+    min_iterations: 2
+
+  - id: implementation
+    type: iterative
+    creator: implementer
+    reviewers: [code-reviewer-logic, code-reviewer-patterns]
+    verifiers: [code-verifier-logic, code-verifier-patterns]
+    context:
+      - "{{ phases.planning.outputs.artifact }}"
+
+  - id: testing-execution
+    type: test-execution
+    tester: test-writer
+    fixer: implementer
+```
+
+### Token Budget Management
+
+The server automatically monitors context size and warns when approaching model limits:
+
+- **Warning** at 80% of model limit
+- **Error** at 95% of model limit
+
+Token limits by model:
+- Claude Opus 4.5 / Sonnet 4.5: 200,000 tokens
+- GPT-5.2 Codex: 128,000 tokens
+
+### Example: Iterative Refinement Loop
+
+```
+1. Start workflow: start_workflow({ use_default: true })
+2. Execute step: step_workflow({ workflow_id: "..." })
+3. Review at checkpoint
+4. Continue: continue_workflow({ workflow_id: "...", decision: "iterate", feedback: "..." })
+5. Repeat until approved
+```
 
 ### How Session Continuity Works
 
