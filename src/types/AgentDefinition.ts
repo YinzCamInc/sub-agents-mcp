@@ -7,21 +7,21 @@
  * - Sonnet 4.5: Balanced cost/performance, strong for code and multi-hour agent tasks
  * - GPT-5.2 Codex: Best for agentic coding, large refactors, long horizon tasks
  */
-export type AgentModelId = 'claude-opus-4-5' | 'claude-sonnet-4-5' | 'gpt-5-2-codex'
+export type AgentModelId = 'opus-4.5-thinking' | 'sonnet-4.5-thinking' | 'gpt-5.2-codex-xhigh'
 
 /**
  * Model mapping from agent model IDs to actual API model names.
  */
 export const MODEL_MAP: Record<AgentModelId, string> = {
-  'claude-opus-4-5': 'claude-opus-4.5',
-  'claude-sonnet-4-5': 'claude-sonnet-4.5',
-  'gpt-5-2-codex': 'gpt-5.2-codex',
+  'opus-4.5-thinking': 'opus-4.5-thinking',
+  'sonnet-4.5-thinking': 'sonnet-4.5-thinking',
+  'gpt-5.2-codex-xhigh': 'gpt-5.2-codex-xhigh',
 }
 
 /**
  * Default model to use when not specified in frontmatter.
  */
-export const DEFAULT_MODEL: AgentModelId = 'claude-sonnet-4-5'
+export const DEFAULT_MODEL: AgentModelId = 'sonnet-4.5-thinking'
 
 /**
  * Represents an AI agent definition loaded from a markdown file.

@@ -54,7 +54,7 @@ describe('RunAgentTool - Phase 1 Parameters', () => {
     content: '# Test Agent\nThis is a test agent.',
     filePath: '/agents/test-agent.md',
     lastModified: new Date('2025-01-01'),
-    model: 'claude-opus-4-5',
+    model: 'opus-4.5-thinking',
   }
 
   beforeEach(() => {
@@ -89,7 +89,7 @@ describe('RunAgentTool - Phase 1 Parameters', () => {
       // Assert
       expect(mockAgentExecutor.executeAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'claude-opus-4.5', // Mapped from claude-opus-4-5
+          model: 'opus-4.5-thinking', // Mapped from opus-4.5-thinking
         })
       )
     })
@@ -100,30 +100,30 @@ describe('RunAgentTool - Phase 1 Parameters', () => {
         agent: 'test-agent',
         prompt: 'Test prompt',
         cwd: '/test/dir',
-        model: 'claude-sonnet-4-5',
+        model: 'sonnet-4.5-thinking',
       })
 
       // Assert
       expect(mockAgentExecutor.executeAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'claude-sonnet-4.5', // Mapped from claude-sonnet-4-5
+          model: 'sonnet-4.5-thinking', // Mapped from sonnet-4.5-thinking
         })
       )
     })
 
-    it('should use gpt-5-2-codex model when specified', async () => {
+    it('should use gpt-5.2-codex-xhigh model when specified', async () => {
       // Act
       await runAgentTool.execute({
         agent: 'test-agent',
         prompt: 'Test prompt',
         cwd: '/test/dir',
-        model: 'gpt-5-2-codex',
+        model: 'gpt-5.2-codex-xhigh',
       })
 
       // Assert
       expect(mockAgentExecutor.executeAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gpt-5.2-codex', // Mapped from gpt-5-2-codex
+          model: 'gpt-5.2-codex-xhigh', // Mapped from gpt-5.2-codex-xhigh
         })
       )
     })

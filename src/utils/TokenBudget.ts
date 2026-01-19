@@ -16,11 +16,11 @@ import { Logger } from './Logger'
  */
 export const MODEL_TOKEN_LIMITS: Record<AgentModelId | string, number> = {
   // Claude models
-  'claude-opus-4-5': 200000,
-  'claude-sonnet-4-5': 200000,
+  'opus-4.5-thinking': 200000,
+  'sonnet-4.5-thinking': 200000,
 
   // GPT models
-  'gpt-5-2-codex': 128000,
+  'gpt-5.2-codex-xhigh': 128000,
 
   // Default for unknown models
   default: 100000,
@@ -169,7 +169,7 @@ export class TokenBudgetChecker {
 
   constructor(defaultModel?: string) {
     this.logger = new Logger('debug')
-    this.defaultModel = defaultModel || 'claude-sonnet-4-5'
+    this.defaultModel = defaultModel || 'sonnet-4.5-thinking'
   }
 
   /**

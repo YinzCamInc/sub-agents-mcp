@@ -56,7 +56,7 @@ describe('RunAgentsTool', () => {
     content: `# ${name}\nThis is the ${name} agent.`,
     filePath: `/agents/${name}.md`,
     lastModified: new Date('2025-01-01'),
-    model: 'claude-opus-4-5',
+    model: 'opus-4.5-thinking',
   })
 
   beforeEach(() => {
@@ -449,7 +449,7 @@ describe('RunAgentsTool', () => {
   describe('model selection', () => {
     it('should use model from agent frontmatter', async () => {
       const customAgent = createMockAgentDefinition('custom-agent')
-      customAgent.model = 'gpt-5-2-codex'
+      customAgent.model = 'gpt-5.2-codex-xhigh'
       vi.mocked(mockAgentManager.getAgent).mockResolvedValue(customAgent)
 
       await tool.execute({
@@ -460,7 +460,7 @@ describe('RunAgentsTool', () => {
 
       expect(mockAgentExecutor.executeAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gpt-5.2-codex',
+          model: 'gpt-5.2-codex-xhigh',
         })
       )
     })

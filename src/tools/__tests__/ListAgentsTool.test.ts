@@ -14,7 +14,7 @@ describe('ListAgentsTool', () => {
       content: '# Plan Creator\nCreates plans...',
       filePath: '/agents/plan-creator.md',
       lastModified: new Date('2025-01-01'),
-      model: 'claude-opus-4-5',
+      model: 'opus-4.5-thinking',
     },
     {
       name: 'code-reviewer',
@@ -22,7 +22,7 @@ describe('ListAgentsTool', () => {
       content: '# Code Reviewer\nReviews code...',
       filePath: '/agents/code-reviewer.md',
       lastModified: new Date('2025-01-01'),
-      model: 'claude-sonnet-4-5',
+      model: 'sonnet-4.5-thinking',
     },
     {
       name: 'security-reviewer',
@@ -30,7 +30,7 @@ describe('ListAgentsTool', () => {
       content: '# Security Reviewer\nChecks security...',
       filePath: '/agents/security-reviewer.md',
       lastModified: new Date('2025-01-01'),
-      model: 'gpt-5-2-codex',
+      model: 'gpt-5.2-codex-xhigh',
     },
   ]
 
@@ -155,17 +155,17 @@ describe('ListAgentsTool', () => {
       const planCreator = responseData.agents.find(
         (a: { name: string }) => a.name === 'plan-creator'
       )
-      expect(planCreator.model).toBe('claude-opus-4-5')
+      expect(planCreator.model).toBe('opus-4.5-thinking')
 
       const codeReviewer = responseData.agents.find(
         (a: { name: string }) => a.name === 'code-reviewer'
       )
-      expect(codeReviewer.model).toBe('claude-sonnet-4-5')
+      expect(codeReviewer.model).toBe('sonnet-4.5-thinking')
 
       const securityReviewer = responseData.agents.find(
         (a: { name: string }) => a.name === 'security-reviewer'
       )
-      expect(securityReviewer.model).toBe('gpt-5-2-codex')
+      expect(securityReviewer.model).toBe('gpt-5.2-codex-xhigh')
     })
 
     it('should sort agents by name', async () => {

@@ -54,7 +54,7 @@ describe('WorkflowExecutor', () => {
     content: `# ${name}\nThis is the ${name} agent.`,
     filePath: `/agents/${name}.md`,
     lastModified: new Date('2025-01-01'),
-    model: 'claude-opus-4-5',
+    model: 'opus-4.5-thinking',
   })
 
   const createMinimalWorkflowDefinition = (): WorkflowDefinition => ({

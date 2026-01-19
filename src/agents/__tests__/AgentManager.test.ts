@@ -345,7 +345,7 @@ This agent does amazing things.`
       const mockFiles = ['opus-agent.md']
       const mockStats = { mtime: new Date('2025-01-01') }
       const mockContent = `---
-model: claude-opus-4-5
+model: opus-4.5-thinking
 ---
 # Opus Agent
 This agent uses Claude Opus 4.5.`
@@ -362,19 +362,19 @@ This agent uses Claude Opus 4.5.`
 
       // Assert
       expect(agent).toBeDefined()
-      expect(agent!.model).toBe('claude-opus-4-5')
+      expect(agent!.model).toBe('opus-4.5-thinking')
       expect(agent!.description).toBe('Opus Agent')
       // Content should not include frontmatter
       expect(agent!.content).not.toContain('---')
       expect(agent!.content).toContain('# Opus Agent')
     })
 
-    it('should parse claude-sonnet-4-5 model from frontmatter', async () => {
+    it('should parse sonnet-4.5-thinking model from frontmatter', async () => {
       // Arrange
       const mockFiles = ['sonnet-agent.md']
       const mockStats = { mtime: new Date('2025-01-01') }
       const mockContent = `---
-model: claude-sonnet-4-5
+model: sonnet-4.5-thinking
 ---
 # Sonnet Agent
 This agent uses Claude Sonnet 4.5.`
@@ -391,15 +391,15 @@ This agent uses Claude Sonnet 4.5.`
 
       // Assert
       expect(agent).toBeDefined()
-      expect(agent!.model).toBe('claude-sonnet-4-5')
+      expect(agent!.model).toBe('sonnet-4.5-thinking')
     })
 
-    it('should parse gpt-5-2-codex model from frontmatter', async () => {
+    it('should parse gpt-5.2-codex-xhigh model from frontmatter', async () => {
       // Arrange
       const mockFiles = ['codex-agent.md']
       const mockStats = { mtime: new Date('2025-01-01') }
       const mockContent = `---
-model: gpt-5-2-codex
+model: gpt-5.2-codex-xhigh
 ---
 # Codex Agent
 This agent uses GPT-5.2 Codex.`
@@ -416,7 +416,7 @@ This agent uses GPT-5.2 Codex.`
 
       // Assert
       expect(agent).toBeDefined()
-      expect(agent!.model).toBe('gpt-5-2-codex')
+      expect(agent!.model).toBe('gpt-5.2-codex-xhigh')
     })
 
     it('should use default model when no frontmatter present', async () => {
@@ -471,7 +471,7 @@ This agent has an invalid model specified.`
       const mockFiles = ['metadata-agent.md']
       const mockStats = { mtime: new Date('2025-01-01') }
       const mockContent = `---
-model: claude-opus-4-5
+model: opus-4.5-thinking
 author: test-author
 version: 1.0.0
 ---
@@ -491,7 +491,7 @@ This agent has additional metadata.`
       // Assert
       expect(agent).toBeDefined()
       expect(agent!.frontmatter).toBeDefined()
-      expect(agent!.frontmatter!['model']).toBe('claude-opus-4-5')
+      expect(agent!.frontmatter!['model']).toBe('opus-4.5-thinking')
       expect(agent!.frontmatter!['author']).toBe('test-author')
       expect(agent!.frontmatter!['version']).toBe('1.0.0')
     })

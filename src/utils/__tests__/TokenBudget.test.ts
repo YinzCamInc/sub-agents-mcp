@@ -31,16 +31,16 @@ describe('TokenBudget', () => {
   })
 
   describe('getModelLimit', () => {
-    it('should return limit for claude-opus-4-5', () => {
-      expect(getModelLimit('claude-opus-4-5')).toBe(200000)
+    it('should return limit for opus-4.5-thinking', () => {
+      expect(getModelLimit('opus-4.5-thinking')).toBe(200000)
     })
 
-    it('should return limit for claude-sonnet-4-5', () => {
-      expect(getModelLimit('claude-sonnet-4-5')).toBe(200000)
+    it('should return limit for sonnet-4.5-thinking', () => {
+      expect(getModelLimit('sonnet-4.5-thinking')).toBe(200000)
     })
 
-    it('should return limit for gpt-5-2-codex', () => {
-      expect(getModelLimit('gpt-5-2-codex')).toBe(128000)
+    it('should return limit for gpt-5.2-codex-xhigh', () => {
+      expect(getModelLimit('gpt-5.2-codex-xhigh')).toBe(128000)
     })
 
     it('should return default limit for unknown model', () => {
@@ -55,7 +55,7 @@ describe('TokenBudget', () => {
   describe('estimateTokensForModel', () => {
     it('should calculate percentage of limit', () => {
       const text = 'a'.repeat(40000) // ~10K tokens
-      const estimate = estimateTokensForModel(text, 'claude-opus-4-5')
+      const estimate = estimateTokensForModel(text, 'opus-4.5-thinking')
 
       expect(estimate.tokens).toBe(10000)
       expect(estimate.characters).toBe(40000)
@@ -70,7 +70,7 @@ describe('TokenBudget', () => {
       const limit = 200000
       const targetTokens = Math.ceil(limit * 0.85)
       const text = 'a'.repeat(targetTokens * 4)
-      const estimate = estimateTokensForModel(text, 'claude-opus-4-5')
+      const estimate = estimateTokensForModel(text, 'opus-4.5-thinking')
 
       expect(estimate.exceedsWarning).toBe(true)
       expect(estimate.exceedsError).toBe(false)
@@ -81,7 +81,7 @@ describe('TokenBudget', () => {
       const limit = 200000
       const targetTokens = Math.ceil(limit * 0.96)
       const text = 'a'.repeat(targetTokens * 4)
-      const estimate = estimateTokensForModel(text, 'claude-opus-4-5')
+      const estimate = estimateTokensForModel(text, 'opus-4.5-thinking')
 
       expect(estimate.exceedsWarning).toBe(true)
       expect(estimate.exceedsError).toBe(true)
@@ -90,7 +90,7 @@ describe('TokenBudget', () => {
 
   describe('validateTokenBudget', () => {
     it('should return valid for small content', () => {
-      const result = validateTokenBudget('Hello world', 'claude-opus-4-5')
+      const result = validateTokenBudget('Hello world', 'opus-4.5-thinking')
 
       expect(result.valid).toBe(true)
       expect(result.error).toBeUndefined()
@@ -101,7 +101,7 @@ describe('TokenBudget', () => {
       const limit = 200000
       const targetTokens = Math.ceil(limit * 0.85)
       const text = 'a'.repeat(targetTokens * 4)
-      const result = validateTokenBudget(text, 'claude-opus-4-5')
+      const result = validateTokenBudget(text, 'opus-4.5-thinking')
 
       expect(result.valid).toBe(true)
       expect(result.warning).toBeDefined()
@@ -113,7 +113,7 @@ describe('TokenBudget', () => {
       const limit = 200000
       const targetTokens = Math.ceil(limit * 0.96)
       const text = 'a'.repeat(targetTokens * 4)
-      const result = validateTokenBudget(text, 'claude-opus-4-5')
+      const result = validateTokenBudget(text, 'opus-4.5-thinking')
 
       expect(result.valid).toBe(false)
       expect(result.error).toBeDefined()
@@ -125,7 +125,7 @@ describe('TokenBudget', () => {
     let checker: TokenBudgetChecker
 
     beforeEach(() => {
-      checker = new TokenBudgetChecker('claude-sonnet-4-5')
+      checker = new TokenBudgetChecker('sonnet-4.5-thinking')
     })
 
     describe('check', () => {
@@ -136,9 +136,9 @@ describe('TokenBudget', () => {
       })
 
       it('should use model override', () => {
-        const result = checker.check('test', 'gpt-5-2-codex')
+        const result = checker.check('test', 'gpt-5.2-codex-xhigh')
 
-        expect(result.estimate.model).toBe('gpt-5-2-codex')
+        expect(result.estimate.model).toBe('gpt-5.2-codex-xhigh')
         expect(result.estimate.limit).toBe(128000)
       })
     })
@@ -181,7 +181,7 @@ describe('TokenBudget', () => {
         const summary = checker.formatBudgetSummary('Hello world')
 
         expect(summary).toContain('✅ OK')
-        expect(summary).toContain('claude-sonnet-4-5')
+        expect(summary).toContain('sonnet-4.5-thinking')
       })
 
       it('should format WARNING summary', () => {

@@ -210,7 +210,7 @@ export class RunAgentTool {
       model: {
         type: 'string',
         description:
-          "Model override for agent execution (optional). Overrides the model from agent's frontmatter. Valid values: 'claude-opus-4-5' (Opus 4.5), 'claude-sonnet-4-5' (Sonnet 4.5), 'gpt-5-2-codex' (GPT-5.2 Codex).",
+          "Model override for agent execution (optional). Overrides the model from agent's frontmatter. Valid values: 'opus-4.5-thinking' (Opus 4.5), 'sonnet-4.5-thinking' (Sonnet 4.5), 'gpt-5.2-codex-xhigh' (GPT-5.2 Codex).",
       },
       context_files: {
         type: 'array',
@@ -779,7 +779,7 @@ export class RunAgentTool {
       }
 
       // Validate model is a known model ID
-      const validModels = ['claude-opus-4-5', 'claude-sonnet-4-5', 'gpt-5-2-codex']
+      const validModels = ['opus-4.5-thinking', 'sonnet-4.5-thinking', 'gpt-5.2-codex-xhigh']
       if (!validModels.includes(model)) {
         throw new Error(`Invalid model parameter: must be one of ${validModels.join(', ')}`)
       }

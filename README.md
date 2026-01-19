@@ -412,7 +412,7 @@ Agents can specify their preferred model via frontmatter:
 
 ```markdown
 ---
-model: claude-opus-4-5
+model: opus-4.5-thinking
 ---
 # My Agent
 
@@ -420,9 +420,9 @@ Agent prompt content...
 ```
 
 Supported models:
-- `claude-opus-4-5` (Claude Opus 4.5)
-- `claude-sonnet-4-5` (Claude Sonnet 4.5)  
-- `gpt-5-2-codex` (GPT-5.2 Codex)
+- `opus-4.5-thinking` (Claude Opus 4.5)
+- `sonnet-4.5-thinking` (Claude Sonnet 4.5)  
+- `gpt-5.2-codex-xhigh` (GPT-5.2 Codex)
 
 ### Context Injection
 

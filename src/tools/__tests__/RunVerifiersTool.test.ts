@@ -49,7 +49,7 @@ describe('RunVerifiersTool', () => {
     content: `# ${name}\nThis is the ${name} agent.`,
     filePath: `/agents/${name}.md`,
     lastModified: new Date('2025-01-01'),
-    model: 'claude-opus-4-5',
+    model: 'opus-4.5-thinking',
   })
 
   beforeEach(() => {
@@ -551,7 +551,7 @@ describe('RunVerifiersTool', () => {
     it('should use model from verifier agent definition', async () => {
       mockReadFile.mockResolvedValue('Content')
       const verifierAgent = createMockAgentDefinition('plan-verifier-architecture')
-      verifierAgent.model = 'gpt-5-2-codex'
+      verifierAgent.model = 'gpt-5.2-codex-xhigh'
       vi.mocked(mockAgentManager.getAgent).mockResolvedValue(verifierAgent)
 
       await tool.execute({
@@ -563,7 +563,7 @@ describe('RunVerifiersTool', () => {
 
       expect(mockAgentExecutor.executeAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gpt-5.2-codex',
+          model: 'gpt-5.2-codex-xhigh',
         })
       )
     })
